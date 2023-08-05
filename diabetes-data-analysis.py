@@ -122,14 +122,6 @@ xn=data_norm.drop(['Outcome'],axis=1)
 # Standartlaştırılmış ve normalleştirilmiş veriler için ayrı train ve test setleri oluşturuyorum. n eki olanlar normalleştirilir.
 
 from sklearn.model_selection import train_test_split
-xtrain,xtest,ytrain,ytest= train_test_split(x,y,test_size=0.15,stratify=y)
-print(xtrain.shape)
-print(xtest.shape)
-print(ytrain.shape)
-print(ytest.shape)
-
-
-from sklearn.model_selection import train_test_split
 xntrain,xntest,yntrain,yntest= train_test_split(xn,yn,test_size=0.15,stratify=y)
 print(xntrain.shape)
 print(xntest.shape)
