@@ -1,5 +1,3 @@
-
-
 import numpy as np 
 import pandas as pd 
 from scipy import stats 
@@ -87,13 +85,13 @@ plt.show()
 
 
 lis=['Glucose','BloodPressure','SkinThickness','Insulin','BMI','DiabetesPedigreeFunction','Age','Pregnancies']
-def standartization(x):
+def standardization(x):
     x_std = x.copy(deep=True)
     for column in lis:
         x_std[column] = (x_std[column] - x_std[column].mean()) / x_std[column].std() 
     return x_std
 
-data= standartization(data)
+data_std = standardization(data)
 data.head()
 
 
@@ -108,25 +106,68 @@ plt.ylabel('Frekans')
 plt.legend()
 plt.show()
 
-
-data.info()
-
-
-data['Outcome'].value_counts()
-y=data['Outcome']
-x=data.drop(['Outcome'],axis=1)
-yn=data_norm['Outcome']
-xn=data_norm.drop(['Outcome'],axis=1)
-
-
-# Standartlaştırılmış ve normalleştirilmiş veriler için ayrı train ve test setleri oluşturuyorum. n eki olanlar normalleştirilir.
-
+from sklearn.ensemble import RandomForestClassifier
 from sklearn.model_selection import train_test_split
-xntrain,xntest,yntrain,yntest= train_test_split(xn,yn,test_size=0.15,stratify=y)
-print(xntrain.shape)
-print(xntest.shape)
-print(yntrain.shape)
-print(yntest.shape)
+from sklearn.metrics import accuracy_score, confusion_matrix, classification_report
+
+# Veri yükleme ve işlemler
+data= pd.read_csv('/kaggle/input/diabetes-data-set/diabetes.csv')
+data.drop_duplicates(inplace=True)
+data_norm = data.copy()
+for column in data.columns:
+    data_norm[column] = (data_norm[column] - data_norm[column].min()) / (data_norm[column].max() - data_norm[column].min()) 
+
+lis=['Glucose','BloodPressure','SkinThickness','Insulin','BMI','DiabetesPedigreeFunction','Age','Pregnancies']
+def standardization(x):
+    x_std = x.copy(deep=True)
+    for column in lis:
+        x_std[column] = (x_std[column] - x_std[column].mean()) / x_std[column].std() 
+    return x_std
+
+data_std = standardization(data)
+
+y = data['Outcome']
+x = data.drop(['Outcome'], axis=1)
+yn = data_norm['Outcome']
+xn = data_norm.drop(['Outcome'], axis=1)
+ys = data_std['Outcome']
+xs = data_std.drop(['Outcome'], axis=1)
+
+# Oversampling yaparak sınıf dengesizliğini giderme
+df_class_0 = data[data['Outcome'] == 0]
+df_class_1 = data[data['Outcome'] == 1]
+df_class_1_over = df_class_1.sample(500, replace=True)
+df_test_over = pd.concat([df_class_0, df_class_1_over], axis=0)
+y1 = df_test_over['Outcome']
+X1 = df_test_over.drop(['Outcome'], axis=1)
+
+# Veri kümesini eğitim ve test setlerine ayırma
+xtrain, xtest, ytrain, ytest = train_test_split(x, y, test_size=0.15, stratify=y)
+xntrain, xntest, yntrain, yntest = train_test_split(xn, yn, test_size=0.15, stratify=y)
+xs_train, xs_test, ys_train, ys_test = train_test_split(xs, ys, test_size=0.2, shuffle=True, stratify=ys)
+X1_s_train, X1_s_test, y1_s_train, y1_s_test = train_test_split(X1, y1, test_size=0.2, random_state=0, shuffle=True, stratify=y1)
+
+# Rastgele Orman modelini oluşturma ve eğitme
+rf_model = RandomForestClassifier(n_estimators=100, random_state=0)
+rf_model.fit(X1_s_train, y1_s_train)
+
+# Eğitim ve test doğrulukları hesaplama
+train_accuracy_rf = rf_model.score(X1_s_train, y1_s_train) * 100
+test_accuracy_rf = rf_model.score(X1_s_test, y1_s_test) * 100
+
+# Karar ağacı modelinin sonuçlarını görüntüleme
+print("Random Forest Model")
+print("Training accuracy:", train_accuracy_rf)
+print("Testing accuracy:", test_accuracy_rf)
+
+# Test verileri ile tahmin yapma
+predictions_rf = rf_model.predict(X1_s_test)
+
+# Sınıflandırma raporu görüntüleme
+print("Classification Report:")
+print(classification_report(y1_s_test, predictions_rf))
+
+
 
 
 plt.figure(figsize=(10, 6))
@@ -164,19 +205,32 @@ print('training accuracy = '+str(svm_model.score(xntrain, yntrain)*100))
 print('testing accuracy = '+str(svm_model.score(xntest, yntest)*100))
 
 
-# SVM'yi özellik ölçekleme olmadan ve standardizasyonla eğittim. Özellik ölçeklendirmesiz ve standardizasyonlu olarak %55 ve %62'lik test doğruluğu üretti. Dolayısıyla normalleştirme, SVM gibi mesafeye dayalı algoritmalar için iyidir.
-# DL kısmı için, gizli katman olarak 256 nörondan oluşan 2 katmandan oluşan YSA'yı düşünüyorum. Daha fazla nöron ve katman göz önüne alındığında, aşırı uyum sağlandı. Dolayısıyla bu hiperparametrelerle sınırlıyım. Adam iyileştirici ve çapraz entropi kaybı işlevi kullanılarak derlendi.
+# Bu kod bloğu, Rastgele Orman (Random Forest) adlı bir ensemble algoritması kullanarak bir sınıflandırma modeli oluşturmayı ve değerlendirmeyi amaçlamaktadır.   
 
-import tensorflow as tf
-from tensorflow.keras import Sequential
-from tensorflow.keras.layers import Dense, Dropout
-dl_model = Sequential() 
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import accuracy_score, confusion_matrix, classification_report
 
-dl_model.add(Dense(256,  activation = 'relu' ,input_shape=([8]))) #input layer
-dl_model.add(Dense(256,  activation = 'relu'))
-dl_model.add(Dense(1,activation = 'sigmoid'))
-dl_model.summary()
-dl_model.compile(optimizer = 'adam' , loss = 'binary_crossentropy' ,metrics = ['accuracy','Precision','Recall','AUC'])
+# Rastgele Orman modelini oluşturma ve eğitme
+rf_model = RandomForestClassifier(n_estimators=100, random_state=0)
+rf_model.fit(X1_s_train, y1_s_train)
+
+# Eğitim ve test doğrulukları hesaplama
+train_accuracy_rf = rf_model.score(X1_s_train, y1_s_train) * 100
+test_accuracy_rf = rf_model.score(X1_s_test, y1_s_test) * 100
+
+# Karar ağacı modelinin sonuçlarını görüntüleme
+print("Random Forest Model")
+print("Training accuracy:", train_accuracy_rf)
+print("Testing accuracy:", test_accuracy_rf)
+
+# Test verileri ile tahmin yapma
+predictions_rf = rf_model.predict(X1_s_test)
+
+# Sınıflandırma raporu görüntüleme
+print("Classification Report:")
+print(classification_report(y1_s_test, predictions_rf))
+
 
 
 
@@ -327,8 +381,6 @@ dl_model.evaluate(X1_s_train ,
 dl_model.evaluate(X1_s_test ,y1_s_test)
 
 
-# Standartlaştırılmış ve örneklenmiş veriler üzerinde eğitilen YSA, %93 test doğruluğu ile en iyi sonucu verdi. Bu defterde çok iş yaptım, umarım bu bir olumlu oyu hak eder!! Teşekkürler...
-# Yanlış bir şey yaptıysam lütfen belirtin.
 
 plt.figure(figsize=(8, 6))
 plt.plot(history.history['accuracy'], label='Eğitim Doğruluğu')
